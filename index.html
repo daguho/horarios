@@ -365,7 +365,12 @@ function mondayOf(d){
   return date;
 }
 function addDays(d,n){ const r = new Date(d); r.setDate(r.getDate()+n); return r; }
-function toISO(d){ return d.toISOString().slice(0,10); }
+function toISO(d){
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
 function fmtDate(d){ return d.toLocaleDateString('es-ES',{day:'numeric',month:'short'}); }
 function toMin(hhmm){ const [h,m]=hhmm.split(':').map(Number); return h*60+m; }
 
@@ -413,46 +418,55 @@ function renderGrid(){
   const grid = document.getElementById('grid');
   grid.innerHTML = "";
 
-  const totalMin = GRID_END_MIN - GRID_START_MIN;
   const hours = [];
   for(let m=GRID_START_MIN; m<GRID_END_MIN; m+=60) hours.push(m);
 
-  // esquina
+  // filas explícitas: 1 = cabecera de días, 2..(1+hours.length) = horas
+  grid.style.gridTemplateRows = `auto repeat(${hours.length}, ${HOUR_PX}px)`;
+
+  // esquina (fila 1, columna 1)
   const corner = document.createElement('div');
   corner.className = 'corner';
+  corner.style.gridRow = '1';
+  corner.style.gridColumn = '1';
   grid.appendChild(corner);
 
   const today = new Date(); today.setHours(0,0,0,0);
   const weekDates = [];
   for(let i=0;i<7;i++) weekDates.push(addDays(currentMonday,i));
 
-  // cabeceras de día
+  // cabeceras de día (fila 1, columnas 2..8)
   weekDates.forEach((d,i)=>{
     const head = document.createElement('div');
     head.className = 'daycol-head' + (d.getTime()===today.getTime() ? ' is-today':'');
+    head.style.gridRow = '1';
+    head.style.gridColumn = String(i+2);
     head.innerHTML = `<div class="dname">${DAY_NAMES_SHORT[i]}</div><div class="ddate">${fmtDate(d)}</div>`;
     grid.appendChild(head);
   });
 
-  // filas de horas + columna de tracks
-  hours.forEach(m=>{
+  // filas de horas: etiqueta en columna 1, celdas vacías en columnas 2..8
+  hours.forEach((m,rowIdx)=>{
+    const gridRow = String(rowIdx+2);
+
     const label = document.createElement('div');
     label.className = 'hour-label';
-    label.style.height = HOUR_PX+'px';
+    label.style.gridRow = gridRow;
+    label.style.gridColumn = '1';
     const h = Math.floor(m/60);
     label.textContent = `${h}:00`;
     grid.appendChild(label);
 
-    weekDates.forEach(()=>{
+    weekDates.forEach((d,colIdx)=>{
       const cell = document.createElement('div');
       cell.className = 'cell';
-      cell.style.height = HOUR_PX+'px';
+      cell.style.gridRow = gridRow;
+      cell.style.gridColumn = String(colIdx+2);
       grid.appendChild(cell);
     });
   });
 
-  // contenedor absoluto por columna de día para los bloques (superpuesto a las celdas)
-  const gridRect = { rows: hours.length };
+  // un track por día, superpuesto a sus celdas, para colocar los bloques de actividad
   weekDates.forEach((d,dayIdx)=>{
     const events = eventsForDate(d);
     const overlapSet = detectOverlaps(events);
@@ -460,7 +474,6 @@ function renderGrid(){
     track.className = 'track';
     track.style.gridColumn = String(dayIdx+2);
     track.style.gridRow = `2 / span ${hours.length}`;
-    track.style.height = (hours.length*HOUR_PX)+'px';
     grid.appendChild(track);
 
     // agrupar solapes en columnas horizontales dentro del track
