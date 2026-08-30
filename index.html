@@ -350,8 +350,11 @@ function iconKeyFor(ev){
 
 const DAY_NAMES = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
 const DAY_NAMES_SHORT = ["LUN","MAR","MIÉ","JUE","VIE","SÁB","DOM"];
-const GRID_START_MIN = 16*60;   // 16:00
-const GRID_END_MIN   = 22.5*60; // 22:30
+const DEFAULT_START_MIN = 16*60; // franja por defecto si una semana no tiene actividades
+const DEFAULT_END_MIN   = 22*60;
+const PADDING_MIN = 30; // margen antes/después de la primera y última actividad
+let GRID_START_MIN = DEFAULT_START_MIN;
+let GRID_END_MIN   = DEFAULT_END_MIN;
 const HOUR_PX = 56;
 
 let currentMonday = mondayOf(new Date());
@@ -590,7 +593,32 @@ function renderSections(){
   });
 }
 
+function computeWeekBounds(weekDates){
+  let minStart = null, maxEnd = null;
+  weekDates.forEach(d=>{
+    eventsForDate(d).forEach(ev=>{
+      const s = toMin(ev.start), e = toMin(ev.end);
+      if (minStart === null || s < minStart) minStart = s;
+      if (maxEnd === null || e > maxEnd) maxEnd = e;
+    });
+  });
+  if (minStart === null){
+    return { start: DEFAULT_START_MIN, end: DEFAULT_END_MIN };
+  }
+  // margen y redondeo a la hora en punto
+  let start = Math.floor((minStart - PADDING_MIN)/60)*60;
+  let end = Math.ceil((maxEnd + PADDING_MIN)/60)*60;
+  start = Math.max(0, start);
+  end = Math.min(24*60, end);
+  return { start, end };
+}
+
 function render(){
+  const weekDates = [];
+  for(let i=0;i<7;i++) weekDates.push(addDays(currentMonday,i));
+  const bounds = computeWeekBounds(weekDates);
+  GRID_START_MIN = bounds.start;
+  GRID_END_MIN = bounds.end;
   renderWeekLabel();
   renderGrid();
   renderSections();
